@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Portal | ClassConnect</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <nav>
+        <a href="/" class="logo">ClassConnect</a>
+        <div class="nav-links">
+            <a href="/" class="btn btn-outline">Back to Home</a>
+        </div>
+    </nav>
+
+    <div class="form-container glass">
+        <div class="tab-header"
+            style="display: flex; margin-bottom: 2rem; border-bottom: 1px solid var(--surface-border);">
+            <button id="loginTabBtn" class="btn"
+                style="flex:1; background:none; color:var(--primary); font-size:1.2rem;"
+                onclick="switchTab('login')">Login</button>
+            <button id="registerTabBtn" class="btn"
+                style="flex:1; background:none; color:var(--text-muted); font-size:1.2rem;"
+                onclick="switchTab('register')">Register</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <h2 style="margin-bottom: 1.5rem; text-align: center;">Welcome Back</h2>
+            <div class="form-group">
+                <label for="loginEmail">Email Address</label>
+                <input type="email" id="loginEmail" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+            <div id="loginError" style="color: var(--danger); margin-top: 1rem; text-align: center; display: none;">
+            </div>
+        </form>
+
+        <!-- Register Form (Hidden by default) -->
+        <form id="registerForm" onsubmit="handleRegister(event)" style="display: none;">
+            <h2 style="margin-bottom: 1.5rem; text-align: center;">Join as a Teacher</h2>
+            <div class="form-group">
+                <label for="regName">Full Name</label>
+                <input type="text" id="regName" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="regEmail">Email Address</label>
+                <input type="email" id="regEmail" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="regSubject">Primary Subject</label>
+                <input type="text" id="regSubject" class="form-control" placeholder="e.g. Mathematics" required>
+            </div>
+            <div class="form-group">
+                <label for="regPassword">Password</label>
+                <input type="password" id="regPassword" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
+            <div id="regError" style="color: var(--danger); margin-top: 1rem; text-align: center; display: none;"></div>
+        </form>
+    </div>
+
+    <script>
+        // Check if already logged in
+        if (localStorage.getItem('teacherId')) {
+            window.location.href = '/teacher-dashboard.html';
+        }
+
+        function switchTab(tab) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginBtn = document.getElementById('loginTabBtn');
+            const regBtn = document.getElementById('registerTabBtn');
+
+            if (tab === 'login') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                loginBtn.style.color = 'var(--primary)';
+                regBtn.style.color = 'var(--text-muted)';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                loginBtn.style.color = 'var(--text-muted)';
+                regBtn.style.color = 'var(--primary)';
+            }
+
+            document.getElementById('loginError').style.display = 'none';
+            document.getElementById('regError').style.display = 'none';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const errorDiv = document.getElementById('loginError');
+            btn.innerHTML = 'Signing in...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/teachers/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('loginEmail').value,
+                        password: document.getElementById('loginPassword').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('teacherId', data.teacherId);
+                    localStorage.setItem('teacherName', data.name);
+                    window.location.href = '/teacher-dashboard.html';
+                } else {
+                    errorDiv.innerText = data.error || 'Login failed';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.innerText = 'Network error. Try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.innerHTML = 'Sign In';
+                btn.disabled = false;
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const errorDiv = document.getElementById('regError');
+            btn.innerHTML = 'Creating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/teachers/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('regName').value,
+                        email: document.getElementById('regEmail').value,
+                        subject: document.getElementById('regSubject').value,
+                        password: document.getElementById('regPassword').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Registration successful! Please login.');
+                    switchTab('login');
+                    document.getElementById('loginEmail').value = document.getElementById('regEmail').value;
+                } else {
+                    errorDiv.innerText = data.error || 'Registration failed';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.innerText = 'Network error. Try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.innerHTML = 'Create Account';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

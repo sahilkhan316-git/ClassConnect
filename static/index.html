@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Your Perfect Teacher | ClassConnect</title>
+    <meta name="description" content="Search and connect with expert teachers for your learning journey.">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <nav>
+        <a href="/" class="logo">ClassConnect</a>
+        <div class="nav-links" id="navLinks">
+            <a href="/student-login.html" class="btn btn-outline" id="studentLoginBtn">Student Login</a>
+            <a href="/teacher-login.html" class="btn btn-primary" id="teacherLoginBtn">For Teachers</a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <h1>Learn from the <span>Best Minds</span></h1>
+        <p>Discover expert teachers, review their demo lectures, and connect with them based on your location and
+            subject needs.</p>
+
+        <div class="search-container glass">
+            <input type="text" id="searchInput" class="search-input"
+                placeholder="Search by name or subject (e.g. Physics)...">
+            <input type="text" id="locationInput" class="search-input" placeholder="Location...">
+            <button class="btn btn-primary" onclick="searchTeachers()"><i class="fas fa-search"></i> Search</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="teachers-grid" id="teachersGrid">
+            <!-- Teachers will be injected here via JS -->
+            <div class="glass" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+                <p>Loading amazing teachers...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Chat Popup Widget -->
+    <div id="chatWidget" class="chat-widget glass" style="display: none;">
+        <div class="chat-header">
+            <h4 id="chatTeacherName">Chat with Teacher</h4>
+            <button onclick="closeChat()" class="btn-close"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="studentChatForm" class="chat-input-area" onsubmit="sendStudentMessage(event)">
+            <input type="text" id="studentMessageInput" class="form-control" placeholder="Type a message..." required>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i></button>
+        </form>
+        <div id="studentChatMessages" class="chat-messages widget-messages"></div>
+    </div>
+
+    <script>
+        // Fetch and display teachers
+        async function searchTeachers() {
+            const query = document.getElementById('searchInput').value;
+            const location = document.getElementById('locationInput').value;
+            const grid = document.getElementById('teachersGrid');
+
+            grid.innerHTML = '<div class="glass" style="grid-column: 1 / -1; text-align: center; padding: 3rem;"><p>Searching...</p></div>';
+
+            try {
+                const response = await fetch(`/api/teachers?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`);
+                const teachers = await response.json();
+
+                if (teachers.length === 0) {
+                    grid.innerHTML = '<div class="glass" style="grid-column: 1 / -1; text-align: center; padding: 3rem;"><p>No teachers found matching your criteria.</p></div>';
+                    return;
+                }
+
+                grid.innerHTML = '';
+                teachers.forEach(teacher => {
+                    const card = document.createElement('div');
+                    card.className = 'teacher-card glass';
+
+                    const initials = teacher.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+
+                    const avgRating = teacher.rating_count > 0 ? (teacher.rating_sum / teacher.rating_count).toFixed(1) : 'No ratings yet';
+                    const ratingDisplay = teacher.rating_count > 0
+                        ? `<div class="teacher-rating"><i class="fas fa-star" style="color: #FFD700;"></i> ${avgRating} (${teacher.rating_count} reviews)</div>`
+                        : `<div class="teacher-rating"><i class="far fa-star"></i> No ratings yet</div>`;
+
+                    const verifiedTick = teacher.resume_url ? '<i class="fas fa-check-circle verified-badge" title="Verified (Resume Uploaded)"></i>' : '';
+
+                    const rateUI = `
+                        <div class="rate-teacher">
+                            <small>Rate this teacher:</small>
+                            <div class="star-rating" data-teacher-id="${teacher.id}">
+                                <i class="fas fa-star star-btn" data-rating="1" onclick="submitRating(${teacher.id}, 1)"></i>
+                                <i class="fas fa-star star-btn" data-rating="2" onclick="submitRating(${teacher.id}, 2)"></i>
+                                <i class="fas fa-star star-btn" data-rating="3" onclick="submitRating(${teacher.id}, 3)"></i>
+                                <i class="fas fa-star star-btn" data-rating="4" onclick="submitRating(${teacher.id}, 4)"></i>
+                                <i class="fas fa-star star-btn" data-rating="5" onclick="submitRating(${teacher.id}, 5)"></i>
+                            </div>
+                        </div>
+                    `;
+
+                    card.innerHTML = `
+                        <div class="teacher-avatar">${initials}</div>
+                        <h3 class="teacher-name">${teacher.name} ${verifiedTick}</h3>
+                        <div class="teacher-subject">${teacher.subject || 'General Educator'}</div>
+                        ${ratingDisplay}
+                        
+                        ${teacher.location ? `<div class="teacher-detail"><i class="fas fa-map-marker-alt"></i> ${teacher.location}</div>` : ''}
+                        
+                        <div class="teacher-actions">
+                            ${teacher.demo_lecture_url ? `<a href="${teacher.demo_lecture_url}" target="_blank" class="btn btn-primary"><i class="fas fa-play-circle"></i> Demo</a>` : ''}
+                            ${teacher.resume_url ? `<a href="${teacher.resume_url}" target="_blank" class="btn btn-outline"><i class="fas fa-file-alt"></i> Resume</a>` : ''}
+                            <button class="btn btn-secondary" onclick="openChatWithTeacher(${teacher.id}, '${teacher.name}')"><i class="fas fa-comment"></i> Chat</button>
+                        </div>
+                        ${rateUI}
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error("Error fetching teachers:", error);
+                grid.innerHTML = '<div class="glass" style="grid-column: 1 / -1; text-align: center; padding: 3rem;"><p class="text-danger">Failed to load teachers. Please try again.</p></div>';
+            }
+        }
+
+        async function submitRating(teacherId, rating) {
+            try {
+                const response = await fetch(`/api/teachers/${teacherId}/rate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating: parseInt(rating) })
+                });
+                if (response.ok) {
+                    searchTeachers();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to submit rating');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to submit rating from network error.');
+            }
+        }
+
+        let activeChatTeacherId = null;
+        let chatPollInterval = null;
+
+        // Chat Interface Logic for Student
+        function openChatWithTeacher(tId, tName) {
+            if (!studentId) {
+                alert("Please login as a student to chat.");
+                window.location.href = '/student-login.html';
+                return;
+            }
+            activeChatTeacherId = tId;
+            document.getElementById('chatTeacherName').innerText = `Chat with ${tName}`;
+            document.getElementById('chatWidget').style.display = 'flex';
+            loadStudentChat();
+
+            // Auto refresh chat
+            if (chatPollInterval) clearInterval(chatPollInterval);
+            chatPollInterval = setInterval(loadStudentChat, 3000);
+        }
+
+        function closeChat() {
+            document.getElementById('chatWidget').style.display = 'none';
+            activeChatTeacherId = null;
+            if (chatPollInterval) clearInterval(chatPollInterval);
+        }
+
+        async function loadStudentChat() {
+            if (!activeChatTeacherId) return;
+            try {
+                const response = await fetch(`/api/messages?user1_type=student&user1_id=${studentId}&user2_type=teacher&user2_id=${activeChatTeacherId}`);
+                if (response.ok) {
+                    const messages = await response.json();
+                    const container = document.getElementById('studentChatMessages');
+
+                    let newHTML = '';
+                    if (messages.length === 0) {
+                        newHTML = `<div class="chat-placeholder" style="font-size: 0.9rem;">Say hi!</div>`;
+                    } else {
+                        newHTML = messages.map(m => {
+                            const isMe = m.sender_type === 'student' && m.sender_id == studentId;
+                            return `
+                                <div class="message ${isMe ? 'sent' : 'received'}">
+                                    <div class="bubble">${m.content}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    if (container.innerHTML !== newHTML) {
+                        const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+                        container.innerHTML = newHTML;
+                        if (shouldScroll) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load messages", err);
+            }
+        }
+
+        async function sendStudentMessage(e) {
+            e.preventDefault();
+            if (!activeChatTeacherId) return;
+
+            const input = document.getElementById('studentMessageInput');
+            const content = input.value.trim();
+            if (!content) return;
+
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender_type: 'student',
+                        sender_id: studentId,
+                        receiver_type: 'teacher',
+                        receiver_id: activeChatTeacherId,
+                        content: content
+                    })
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    loadStudentChat();
+                }
+            } catch (err) {
+                console.error("Failed to send message", err);
+            }
+        }
+
+        document.addEventListener('mouseover', function (e) {
+            if (e.target.classList.contains('star-btn')) {
+                const rating = e.target.getAttribute('data-rating');
+                const parent = e.target.parentElement;
+                Array.from(parent.children).forEach(star => {
+                    if (star.getAttribute('data-rating') <= rating) {
+                        star.classList.add('hover-active');
+                    } else {
+                        star.classList.remove('hover-active');
+                    }
+                });
+            }
+        });
+
+        document.addEventListener('mouseout', function (e) {
+            if (e.target.classList.contains('star-btn')) {
+                const parent = e.target.parentElement;
+                Array.from(parent.children).forEach(star => star.classList.remove('hover-active'));
+            }
+        });
+
+        // Auth state
+        const studentId = localStorage.getItem('studentId');
+        const studentName = localStorage.getItem('studentName');
+        const teacherId = localStorage.getItem('teacherId');
+
+        function updateNav() {
+            const navLinks = document.getElementById('navLinks');
+
+            if (studentId) {
+                navLinks.innerHTML = `
+                    <span style="margin-right: 1.5rem; color: var(--text-muted);">Hi, ${studentName}</span>
+                    <button onclick="logout()" class="btn btn-outline">Logout</button>
+                `;
+            } else if (teacherId) {
+                navLinks.innerHTML = `
+                    <a href="/teacher-dashboard.html" class="btn btn-primary" style="margin-right: 1rem;">Dashboard</a>
+                    <button onclick="logout()" class="btn btn-outline">Logout</button>
+                `;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('studentId');
+            localStorage.removeItem('studentName');
+            localStorage.removeItem('teacherId');
+            localStorage.removeItem('teacherName');
+            window.location.reload();
+        }
+
+        // Initial load
+        window.onload = () => {
+            updateNav();
+            searchTeachers();
+        }
+    </script>
+</body>
+
+</html>

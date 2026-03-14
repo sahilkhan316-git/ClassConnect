@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | ConnectEd</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <nav>
+        <a href="/" class="logo">ConnectEd</a>
+        <div class="nav-links">
+            <span id="welcomeMsg" style="margin-right: 1.5rem;"></span>
+            <button onclick="logout()" class="btn btn-outline" style="padding: 0.5rem 1rem;">Logout</button>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <aside class="sidebar glass">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div class="teacher-avatar" id="sidebarAvatar" style="margin: 0 auto 1rem;"></div>
+                <h3 id="sidebarName">Loading...</h3>
+                <p id="sidebarSubject" style="color: var(--secondary); font-size: 0.9rem;"></p>
+            </div>
+
+            <ul style="list-style: none;">
+                <li style="margin-bottom: 1rem;">
+                    <a href="#"
+                        style="color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; font-weight: 500;">
+                        <i class="fas fa-user-edit"></i> Edit Profile
+                    </a>
+                </li>
+                <li>
+                    <a href="/"
+                        style="color: var(--text-muted); text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-search"></i> View as Student
+                    </a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main-content glass">
+            <h2 style="margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--surface-border);">
+                Profile Details
+            </h2>
+
+            <form id="profileForm" onsubmit="updateProfile(event)">
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" class="form-control" placeholder="e.g. New York, NY or Online">
+                </div>
+
+                <div class="form-group">
+                    <label for="subject">Primary Subject</label>
+                    <input type="text" id="subject" class="form-control" placeholder="e.g. Physics, Mathematics, Piano">
+                </div>
+
+                <div class="form-group">
+                    <label for="resumeUrl">Resume / CV Link</label>
+                    <input type="url" id="resumeUrl" class="form-control"
+                        placeholder="https://linkedin.com/... or Google Drive link">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Link to your professional profile or document.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="demoUrl">Demo Lecture Link</label>
+                    <input type="url" id="demoUrl" class="form-control" placeholder="https://youtube.com/...">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Link to a video of your teaching style.
+                    </small>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary" id="saveBtn">Save Changes</button>
+                </div>
+            </form>
+
+            <h2
+                style="margin-top: 4rem; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--surface-border);">
+                Messages
+            </h2>
+            <div class="chat-container">
+                <div class="chat-sidebar" id="chatContacts">
+                    <p style="padding: 1rem; color: var(--text-muted);">Loading contacts...</p>
+                </div>
+                <div class="chat-window">
+                    <form id="chatForm" class="chat-input-area" style="display: none;" onsubmit="sendMessage(event)">
+                        <input type="text" id="messageInput" class="form-control" placeholder="Type a message..."
+                            required>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i></button>
+                    </form>
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="chat-placeholder">Select a student to start chatting</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="toast">Changes saved successfully!</div>
+
+    <script>
+        const teacherId = localStorage.getItem('teacherId');
+
+        if (!teacherId) {
+            window.location.href = '/teacher-login.html';
+        }
+
+        async function loadProfile() {
+            try {
+                const response = await fetch(`/api/teachers/${teacherId}`);
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // Update UI elements
+                    const name = data.name || localStorage.getItem('teacherName');
+                    document.getElementById('welcomeMsg').innerText = `Welcome, ${name}`;
+                    document.getElementById('sidebarName').innerText = name;
+                    document.getElementById('sidebarAvatar').innerText = name.split(' ').map(n => n[0]).join('').substring(0, 2);
+                    document.getElementById('sidebarSubject').innerText = data.subject || 'Subject Pending';
+
+                    // Populate form
+                    document.getElementById('location').value = data.location || '';
+                    document.getElementById('subject').value = data.subject || '';
+                    document.getElementById('resumeUrl').value = data.resume_url || '';
+                    document.getElementById('demoUrl').value = data.demo_lecture_url || '';
+                } else {
+                    logout();
+                }
+            } catch (err) {
+                console.error("Failed to load profile", err);
+            }
+        }
+
+        async function updateProfile(e) {
+            e.preventDefault();
+            const btn = document.getElementById('saveBtn');
+            btn.innerHTML = 'Saving...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/teachers/${teacherId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        location: document.getElementById('location').value,
+                        subject: document.getElementById('subject').value,
+                        resume_url: document.getElementById('resumeUrl').value,
+                        demo_lecture_url: document.getElementById('demoUrl').value
+                    })
+                });
+
+                if (response.ok) {
+                    // Refresh sidebar
+                    document.getElementById('sidebarSubject').innerText = document.getElementById('subject').value;
+
+                    // Show toast
+                    const toast = document.getElementById('toast');
+                    toast.className = 'toast show';
+                    setTimeout(() => { toast.className = 'toast'; }, 3000);
+                } else {
+                    alert('Failed to update profile.');
+                }
+            } catch (err) {
+                alert('Network error while saving.');
+            } finally {
+                btn.innerHTML = 'Save Changes';
+                btn.disabled = false;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('teacherId');
+            localStorage.removeItem('teacherName');
+            window.location.href = '/teacher-login.html';
+        }
+
+        // Chat Logic
+        let activeStudentId = null;
+        let teacherChatPollInterval = null;
+
+        async function loadContacts() {
+            try {
+                const response = await fetch(`/api/chats/teacher/${teacherId}`);
+                if (response.ok) {
+                    const contacts = await response.json();
+                    const container = document.getElementById('chatContacts');
+                    if (contacts.length === 0) {
+                        container.innerHTML = '<p style="padding: 1rem; color: var(--text-muted);">No messages yet.</p>';
+                        return;
+                    }
+
+                    container.innerHTML = contacts.map(c => `
+                        <div class="contact-item" onclick="loadMessages(this, ${c.id}, '${c.name}')">
+                            <div class="teacher-avatar" style="width: 40px; height: 40px; font-size: 1rem; margin-bottom: 0;">${c.name.substring(0, 2)}</div>
+                            <span>${c.name}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error("Failed to load contacts", err);
+            }
+        }
+
+        async function loadMessages(element, studentId, studentName) {
+            activeStudentId = studentId;
+            document.getElementById('chatForm').style.display = 'flex';
+
+            // Highlight active contact
+            document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
+            if (element) { element.classList.add('active'); }
+
+            fetchTeacherMessages(studentName);
+
+            if (teacherChatPollInterval) clearInterval(teacherChatPollInterval);
+            teacherChatPollInterval = setInterval(() => fetchTeacherMessages(studentName), 3000);
+        }
+
+        async function fetchTeacherMessages(studentName) {
+            if (!activeStudentId) return;
+            try {
+                const response = await fetch(`/api/messages?user1_type=teacher&user1_id=${teacherId}&user2_type=student&user2_id=${activeStudentId}`);
+                if (response.ok) {
+                    const messages = await response.json();
+                    const container = document.getElementById('chatMessages');
+
+                    let newHTML = '';
+                    if (messages.length === 0) {
+                        newHTML = `<div class="chat-placeholder">No messages yet with ${studentName}. Say hi!</div>`;
+                    } else {
+                        newHTML = messages.map(m => {
+                            const isMe = m.sender_type === 'teacher' && m.sender_id == teacherId;
+                            return `
+                                <div class="message ${isMe ? 'sent' : 'received'}">
+                                    <div class="bubble">${m.content}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    if (container.innerHTML !== newHTML) {
+                        const shouldScroll = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+                        container.innerHTML = newHTML;
+                        if (shouldScroll) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load messages", err);
+            }
+        }
+
+        async function sendMessage(e) {
+            e.preventDefault();
+            if (!activeStudentId) return;
+
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content) return;
+
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender_type: 'teacher',
+                        sender_id: teacherId,
+                        receiver_type: 'student',
+                        receiver_id: activeStudentId,
+                        content: content
+                    })
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    // Reload messages to show the new one
+                    fetchTeacherMessages(''); // Name isn't essential for reload
+                }
+            } catch (err) {
+                console.error("Failed to send message", err);
+            }
+        }
+
+        window.onload = () => {
+            loadProfile();
+            loadContacts();
+        };
+    </script>
+</body>
+
+</html>
